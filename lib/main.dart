@@ -1,3 +1,4 @@
+import 'package:chat/chat_screen.dart';
 import 'package:chat/firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -11,16 +12,21 @@ void main() async {
     );
 
 
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: Container(
-      color: Colors.amber[50],
-    ),
-  ));
+  runApp(
+    MaterialApp(
+      title: 'Chat Flutter',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primaryColor: Color.fromARGB(255, 17, 7, 132),
+        iconTheme: IconThemeData(
+          color: Color.fromARGB(255, 17, 7, 132)
+        )
+      ),
+      home: ChatScreen()
+    )
+  );
 
-  FirebaseFirestore.instance.collection('mensagens').doc('msg1').set({
-    'texto':'Olá',
-    'from' : 'Dani',
-    'read' : false
-    });
+  // FirebaseFirestore.instance.collection('mensagens').snapshots().listen((event) {
+  //   print(event.docs);
+  // });
 }
