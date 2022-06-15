@@ -24,12 +24,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   User? _currentUser;
 
+  bool isLoading = false;
+
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     FirebaseAuth.instance.authStateChanges().listen((user) {
-      _currentUser = user;
+      setState(() {
+        _currentUser = user;
+      });
      });
   }
 
@@ -41,7 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final GoogleSignInAccount googleSignInAccount = await googleSignIn.signIn();
       final GoogleSignInAuthentication googleSignInAuthentication = await googleSignInAccount.authentication;
 
-      final AuthCredential credential = GoogleAuthProvider.credential(
+      final AuthCredential credential = await GoogleAuthProvider.credential(
         idToken: googleSignInAuthentication.idToken,
         accessToken: googleSignInAuthentication.accessToken
       );
@@ -49,6 +53,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final authResult = await FirebaseAuth.instance.signInWithCredential(credential);
 
       final User user = authResult.user;
+
+      return user;
 
     } catch (e) {
       print(e);
@@ -69,29 +75,39 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
     
-
-    Map<String, dynamic> data = {
-      "uid" : user!.uid,
-      "senderName" : user.displayName,
-      "senderPhotoUrl" : user.photoURL
-    };
-    
+    Map<String, dynamic> data = {};
+    if(user != null){
+      data = {
+        "uid" : user.uid,
+        "senderName" : user.displayName,
+        "senderPhotoUrl" : user.photoURL,
+        "time" : Timestamp.now()
+      };
+    }
 
     if (imgFile != null) {
+      setState(() {
+        isLoading = true;
+      });
+
       TaskSnapshot task = await FirebaseStorage.instance.ref().child(
         '${DateTime.now().millisecondsSinceEpoch.toString()}'
       ).putFile(imgFile);
 
+
       String url = await task.ref.getDownloadURL();
       
       data['urlImg'] = url;
+
+      setState(() {
+        isLoading = false;
+      });
     }
 
     if(text != null){
       data['texto'] = text;
     }
-
-    FirebaseFirestore.instance.collection('messages').add(data);
+      FirebaseFirestore.instance.collection('messages').add(data);
   }
 
   @override
@@ -99,16 +115,32 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        title: Text('Olá'),
+        title: Text(
+          _currentUser != null ? 'Olá ${_currentUser!.displayName}' : 'Chat App'
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Color.fromARGB(255, 17, 7, 132),
+        actions: [
+          _currentUser != null ? IconButton(
+            onPressed: (){
+              FirebaseAuth.instance.signOut();
+              googleSignIn.signOut();
+               _scaffoldKey.currentState!.showSnackBar(
+                  const SnackBar(
+                    content: Text('Você saiu com sucesso!'),
+                    )
+                );
+            },
+            icon: const Icon(Icons.exit_to_app)
+          ) : Container()
+        ],
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('messages').snapshots(),
+              stream: FirebaseFirestore.instance.collection('messages').orderBy('time' ,descending: true).snapshots(),
               builder: (context, snapshot){
                 switch (snapshot.connectionState) {
                   case ConnectionState.none:
@@ -123,13 +155,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemCount: documents.length,
                       reverse: true,
                       itemBuilder: (context, index){
-                        return ChatMessage(documents[index].data(), true);
+                        return ChatMessage(
+                          documents[index].data(),
+                          documents[index].data()['uid'] == _currentUser?.uid
+                        );
                       }
                     );
                 }
               }
             )
           ),
+          isLoading ? LinearProgressIndicator() : Container(),
           TextComposer(_sendMessage),
         ],
       ),
